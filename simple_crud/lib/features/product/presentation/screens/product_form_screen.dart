@@ -5,6 +5,8 @@ import 'package:simple_crud/features/product/bloc/product_bloc.dart';
 import 'package:simple_crud/features/product/bloc/product_event.dart';
 import 'package:simple_crud/features/product/bloc/product_state.dart';
 import 'package:simple_crud/features/product/data/models/product.dart';
+import 'package:simple_crud/features/product/presentation/widgets/product_form_field.dart';
+import 'package:simple_crud/features/product/presentation/widgets/product_submit_button.dart';
 
 class ProductFormScreen extends StatefulWidget {
   final Product? product;
@@ -17,13 +19,14 @@ class ProductFormScreen extends StatefulWidget {
 
 class _ProductFormScreenState extends State<ProductFormScreen> {
   final _formKey = GlobalKey<FormState>();
+
   late final TextEditingController _codeController;
   late final TextEditingController _nameController;
   late final TextEditingController _descriptionController;
   late final TextEditingController _priceController;
   late final TextEditingController _qtyController;
 
-  bool get isEditing => widget.product != null;
+  bool get _isEditing => widget.product != null;
 
   @override
   void initState() {
@@ -59,7 +62,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
       qty: int.parse(_qtyController.text.trim()),
     );
 
-    if (isEditing) {
+    if (_isEditing) {
       context
           .read<ProductBloc>()
           .add(UpdateProduct(widget.product!.id!, product));
@@ -68,26 +71,25 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
     }
   }
 
+  void _onStateChanged(BuildContext context, ProductState state) {
+    if (state is ProductActionSuccess) {
+      Navigator.pop(context);
+    } else if (state is ProductError) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(state.message), backgroundColor: Colors.red),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(isEditing ? 'Edit Product' : 'Add Product'),
+        title: Text(_isEditing ? 'Edit Product' : 'Add Product'),
         centerTitle: true,
       ),
       body: BlocListener<ProductBloc, ProductState>(
-        listener: (context, state) {
-          if (state is ProductActionSuccess) {
-            Navigator.pop(context);
-          } else if (state is ProductError) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(state.message),
-                backgroundColor: Colors.red,
-              ),
-            );
-          }
-        },
+        listener: _onStateChanged,
         child: BlocBuilder<ProductBloc, ProductState>(
           builder: (context, state) {
             final isLoading = state is ProductLoading;
@@ -98,7 +100,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    _buildField(
+                    ProductFormField(
                       controller: _codeController,
                       label: 'Code',
                       hint: 'e.g. PRD-001',
@@ -108,7 +110,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                           v == null || v.isEmpty ? 'Code is required' : null,
                     ),
                     const SizedBox(height: 16),
-                    _buildField(
+                    ProductFormField(
                       controller: _nameController,
                       label: 'Name',
                       hint: 'Product name',
@@ -118,7 +120,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                           v == null || v.isEmpty ? 'Name is required' : null,
                     ),
                     const SizedBox(height: 16),
-                    _buildField(
+                    ProductFormField(
                       controller: _descriptionController,
                       label: 'Description',
                       hint: 'Product description',
@@ -130,7 +132,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                           : null,
                     ),
                     const SizedBox(height: 16),
-                    _buildField(
+                    ProductFormField(
                       controller: _priceController,
                       label: 'Price',
                       hint: 'e.g. 50000',
@@ -140,14 +142,13 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                       inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                       validator: (v) {
                         if (v == null || v.isEmpty) return 'Price is required';
-                        if (int.tryParse(v) == null) {
+                        if (int.tryParse(v) == null)
                           return 'Enter a valid number';
-                        }
                         return null;
                       },
                     ),
                     const SizedBox(height: 16),
-                    _buildField(
+                    ProductFormField(
                       controller: _qtyController,
                       label: 'Quantity',
                       hint: 'e.g. 100',
@@ -156,37 +157,18 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                       keyboardType: TextInputType.number,
                       inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                       validator: (v) {
-                        if (v == null || v.isEmpty) {
+                        if (v == null || v.isEmpty)
                           return 'Quantity is required';
-                        }
-                        if (int.tryParse(v) == null) {
+                        if (int.tryParse(v) == null)
                           return 'Enter a valid number';
-                        }
                         return null;
                       },
                     ),
                     const SizedBox(height: 32),
-                    SizedBox(
-                      height: 50,
-                      child: ElevatedButton(
-                        onPressed: isLoading ? null : _submit,
-                        style: ElevatedButton.styleFrom(
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        child: isLoading
-                            ? const SizedBox(
-                                width: 24,
-                                height: 24,
-                                child: CircularProgressIndicator(
-                                    strokeWidth: 2, color: Colors.white),
-                              )
-                            : Text(
-                                isEditing ? 'Update Product' : 'Save Product',
-                                style: const TextStyle(fontSize: 16),
-                              ),
-                      ),
+                    ProductSubmitButton(
+                      isLoading: isLoading,
+                      isEditing: _isEditing,
+                      onPressed: _submit,
                     ),
                   ],
                 ),
@@ -194,34 +176,6 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
             );
           },
         ),
-      ),
-    );
-  }
-
-  Widget _buildField({
-    required TextEditingController controller,
-    required String label,
-    required String hint,
-    required IconData icon,
-    bool enabled = true,
-    int maxLines = 1,
-    TextInputType keyboardType = TextInputType.text,
-    List<TextInputFormatter>? inputFormatters,
-    String? Function(String?)? validator,
-  }) {
-    return TextFormField(
-      controller: controller,
-      enabled: enabled,
-      maxLines: maxLines,
-      keyboardType: keyboardType,
-      inputFormatters: inputFormatters,
-      validator: validator,
-      decoration: InputDecoration(
-        labelText: label,
-        hintText: hint,
-        prefixIcon: Icon(icon),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-        filled: true,
       ),
     );
   }
